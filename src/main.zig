@@ -19,8 +19,10 @@ pub fn main() !void {
         file = cwd.openFile(PATH, .{ .mode = .read_write }) catch |err| {
             if (err == error.FileNotFound) {
                 file = try cwd.createFile(PATH, .{});
+                continue;
+            } else {
+                return err;
             }
-            return err;
         };
         defer file.close();
         var used_length = try file.read(buffer);
