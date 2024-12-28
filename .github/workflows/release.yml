@@ -1,0 +1,93 @@
+name: Build and Release
+
+permissions:
+  contents: write
+  
+on:
+  push:
+    branches:
+      - main  # 当推送到 main 分支时触发
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  build:
+    name: Build (Zig)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Zig
+        uses: mlugg/setup-zig@v1
+        with:
+          version: 0.13.0
+
+      - name: Build with Zig
+        run: zig build --release=safe
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: time-trek-${{ matrix.os }}
+          path: |
+            # 根据你项目的实际产物路径进行修改
+            zig-out/bin/time-trek*
+            # 如果有更多可执行文件，可一并列出
+
+  release:
+    name: Create Release
+    needs: [build]
+    runs-on: ubuntu-latest  # 仅需在一个环境下执行即可
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          # 下载所有在 build job 里上传的 artifacts
+          path: ./release_artifacts
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        with:
+          tag_name: ${{ github.run_number }}
+          release_name: "Zig build release #${{ github.run_number }}"
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Linux binary
+        if: always()
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./release_artifacts/time-trek-ubuntu-latest/time-trek
+          asset_name: time-trek-linux
+          asset_content_type: application/octet-stream
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload macOS binary
+        if: always()
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./release_artifacts/time-trek-macos-latest/time-trek
+          asset_name: time-trek-macos
+          asset_content_type: application/octet-stream
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Windows binary
+        if: always()
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./release_artifacts/time-trek-windows-latest/time-trek.exe
+          asset_name: time-trek-windows.exe
+          asset_content_type: application/octet-stream
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
